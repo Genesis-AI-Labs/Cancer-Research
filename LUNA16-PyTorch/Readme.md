@@ -18,4 +18,4 @@ Project Description : **To be updated soon**
 
 **5 - Epoch Training Loop**
 
-![LUNA16_Epochlog](/home/siddy/Pictures/LUNA16_Epochlog.png)
+![LUNA16_Epochlog](LUNA16_Epochlog.png)
