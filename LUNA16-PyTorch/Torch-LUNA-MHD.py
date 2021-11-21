@@ -23,41 +23,20 @@ from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import torch.optim as optim
 
-
-# ## Explore Dataset
-
-
-
+## Explore Dataset
 
 df_annotations = pd.read_csv('LUNA/annotations.csv')
 df_annotations.head()
-
-
-
-
 df_annotations.shape
-
-
-
-
 df_candidates = pd.read_csv('LUNA/candidates.csv')
 df_candidates.head()
-
-
-
-
-
 df_candidates.shape
-
 
 
 # there are multiple annotations and candidates of a single CT scan
 
 print(f'Total Annotations: {df_annotations.shape[0]}, Unique CT scans: {len(df_annotations.seriesuid.unique())}')
 print(f'Total Candidates: {df_candidates.shape[0]}, Unique CT scans: {len(df_candidates.seriesuid.unique())}')
-
-
-
 
 
 diameters = {}
@@ -69,33 +48,19 @@ for _, row in df_annotations.iterrows():
         (center_xyz, row.diameter_mm)
     )
 
-
-
-
 len(diameters)
 
 
 # Combining candidates and annotations
 
-
-
-
 get_ipython().run_cell_magic('time', '', "\nCandidateInfoTuple = namedtuple(\n    'CandidateInfoTuple',\n    ['is_nodule', 'diameter_mm', 'series_uid', 'center_xyz']\n)\n\ncandidates = []\n\nfor _, row in df_candidates.iterrows():\n\n    candidate_center_xyz = (row.coordX, row.coordY, row.coordZ)\n\n    candidate_diameter = 0.0\n\n    for annotation in diameters.get(row.seriesuid, []):\n\n        annotation_center_xyz, annotation_diameter = annotation\n\n        for i in range(3):\n\n            delta = abs(candidate_center_xyz[i] - annotation_center_xyz[i])\n\n            if delta > annotation_diameter / 4:\n                    break\n            \n\n        else:\n            candidate_diameter = annotation_diameter\n            \n\n            break\n    \n    candidates.append(CandidateInfoTuple(\n        bool(row['class']),\n        candidate_diameter,\n        row.seriesuid,\n        candidate_center_xyz\n    ))")
 
-
-
-
-
 candidates.sort(reverse=True)
-
-
 
 with open('LUNA/missing.txt', 'r') as f:
     missing_uids = {uid.split('\n')[0] for uid in f}
 
 len(missing_uids)
-
-
 
 
 
@@ -105,16 +70,11 @@ print(f'All candidates in dataset: {len(candidates)}')
 print(f'Candidates with CT scan : {len(candidates_clean)}')
 
 
-# ## Loading the Data
-
-
+## Loading the Data
 
 candidate = candidates_clean[0]
 
 candidate
-
-
-
 
 filepaths = glob.glob(f'LUNA/subset*/*/{candidate.series_uid}.mhd')
 
@@ -125,14 +85,9 @@ assert len(filepaths) != 0, f'CT scan with seriesuid {candidate.series_uid} not 
 
 filepaths
 
-
-
-
 mhd_file_path = filepaths[0]
 
 mhd_file_path
-
-
 
 
 # Reading the Image using SimpleITK
@@ -140,36 +95,24 @@ mhd_file_path
 mhd_file = sitk.ReadImage(mhd_file_path)
 
 
-
-
 #store it as numpy array
 
 ct_scan = np.array(sitk.GetArrayFromImage(mhd_file), dtype = np.float32)
 
-
-
 ct_scan.clip(-1000, 1000, ct_scan)
-
-
-
 
 origin_xyz = mhd_file.GetOrigin()
 voxel_size_xyz = mhd_file.GetSpacing()
 direction_matrix = np.array(mhd_file.GetDirection()).reshape(3, 3)
 
-
-
 origin_xyz_np = np.array(origin_xyz)
 voxel_size_xyz_np = np.array(voxel_size_xyz)
-
-
 
 # Patient Coordinate System --> CRI Voxel Coordinate System
 
 cri = ((center_xyz - origin_xyz_np) @ np.linalg.inv(direction_matrix)) / voxel_size_xyz_np
 
 cri  = np.round(cri)
-
 
 # CRI --> IRC
 
@@ -181,16 +124,9 @@ irc = (int(cri[2]), int(cri[1]), int(cri[0]))
 
 ct_scan.shape
 
-
-
-
 # extract a chunk of size 10 along the index column, and 18 rows and columns.
 
 dims_irc = (10, 18, 18)
-
-
-
-
 
 slice_list = []
 
@@ -215,18 +151,12 @@ for axis, center_val in enumerate(irc):
 tuple(slice_list)
 
 
-
-
 ct_scan_chunk = ct_scan[tuple(slice_list)]
 ct_scan_chunk.shape
 
 
 
-
-
 candidate.is_nodule
-
-
 
 
 # is_nodule tensor
@@ -235,8 +165,6 @@ torch.tensor([
     not candidate.is_nodule,
     candidate.is_nodule,
 ], dtype = torch.long)
-
-
 
 
 # convert ct scan chunk ---> Pytorch tensor
@@ -380,8 +308,6 @@ class LunaDataset(Dataset):
         return ct_scan_tensor, label_tensor
         
 
-
-
 VALIDATION_STRIDE = 10 # every 10th CT Scan will be in Validation dataset
 BS=16
 
@@ -442,8 +368,6 @@ def train_loop(model, dataloader, criterion, optimizer, ds_size):
 
 def eval_loop(model, dataloader, criterion, ds_size):
 
-
-
     model.eval()
 
 
@@ -481,9 +405,7 @@ def eval_loop(model, dataloader, criterion, ds_size):
     return epoch_loss, epoch_acc, (running_pos_correct, running_pos), (running_neg_correct, running_neg)
 
 
-# ## Train the Model
-
-
+## Train the Model
 
 class LunaModel(nn.Module):
     def __init__(self):
@@ -532,8 +454,6 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.AdamW(model.parameters(), weight_decay = 0.1)
 
 
-
-
 EPOCHS = 5
 
 for epoch in range(EPOCHS):
@@ -558,9 +478,3 @@ for epoch in range(EPOCHS):
     print(f'\tVal. Loss: {val_loss:.3f} |  Val. Acc: {val_acc*100:.2f}%')
     print(f'\tVal. - correct pos: {val_pos[0]}/{val_pos[1]} | correct neg: {val_neg[0]}/{val_neg[1]}')
     print()
-
-
-
-
-
-
